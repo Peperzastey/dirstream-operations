@@ -43,6 +43,7 @@ struct OpContext {
 
 void op_list(OpContext &ctx);
 void op_list_rest(OpContext &ctx);
+void op_rewind_list(OpContext &ctx);
 void op_pos(OpContext &ctx);
 void op_next(OpContext &ctx);
 void op_tell(OpContext &ctx);
@@ -68,6 +69,7 @@ int main(int argc, char *argv[]) try {
     std::unordered_map</*const*/std::string, /*const*/std::string> shorts = {
         {"l", "list"},
         {"lr", "listrest"},
+        {"rl", "rewindlist"},
         {"p", "pos"},
         {"n", "next"},
         {"t", "tell"},
@@ -77,6 +79,7 @@ int main(int argc, char *argv[]) try {
     std::unordered_map</*const*/std::string, std::function<void(OpContext&)>> operations = {
         {"list", op_list},
         {"listrest", op_list_rest},
+        {"rewindlist", op_rewind_list},
         {"pos", op_pos},
         {"next", op_next},
         {"tell", op_tell},
@@ -159,6 +162,27 @@ void op_list_rest(OpContext &ctx) {
     assert(telldir(ctx.dir) == dirstream_pos);
 
     fprintf(stdout, "\n");
+}
+
+void op_rewind_list(OpContext &ctx) {
+    auto curr_dirstream_pos = telldir(ctx.dir);
+    if (curr_dirstream_pos == -1) {
+        std::cerr << "Telldir failed.\n";
+        throw std::system_error(errno, std::generic_category());
+    }
+
+    rewinddir(ctx.dir);
+
+    struct dirent *file_ent;
+    while (true) {
+        file_ent = readdir(ctx.dir);
+        if (file_ent == NULL)
+            break;
+        print_dirent(file_ent);
+    }
+    fprintf(stdout, "\n");
+
+    seekdir(ctx.dir, curr_dirstream_pos);
 }
 
 void op_pos(OpContext &ctx) {
