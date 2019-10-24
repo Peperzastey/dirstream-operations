@@ -13,6 +13,7 @@
 #include <functional>
 #include <limits>
 #include <cassert>
+#include <type_traits>
 
 enum DirStreamPos {
     BEFORE_FIRST,
@@ -55,6 +56,8 @@ void print_dirent(const dirent *dirent);
 long do_telldir(DIR *dirstream);
 
 int main(int argc, char *argv[]) try {
+    static_cast<void>(argc); // unused parameters
+    static_cast<void>(argv);
     /*std::array<const char*, 8> operations = {
         "list",
         "list rest"
@@ -219,34 +222,37 @@ void op_next(OpContext &ctx) {
 }
 
 void op_tell(OpContext &ctx) {
-    auto dirstream_pos = do_telldir(ctx.dir);
-    fprintf(stdout, "%ld", dirstream_pos);
+    unsigned long dirstream_pos = do_telldir(ctx.dir); // integral conversion to unsigned
+    fprintf(stdout, "%lu", dirstream_pos);
     fprintf(stdout, "\n");
 }
 
 void op_seek(OpContext &ctx) {
     // must be valid
-    long position = 0;
+    unsigned long position = 0;
     if (!(std::cin >> position)) {
         std::cout << "Wrong operation argument\n";
         return;
     }
-    seekdir(ctx.dir, position);
+    fprintf(stdout, "Pos as signed: %ld\n", reinterpret_cast<long&>(position));
+    seekdir(ctx.dir, reinterpret_cast<long&>(position)); // type aliasing
     //TODO check somehow?
 
-    auto dirstream_pos = do_telldir(ctx.dir);
-    fprintf(stdout, "New position: %ld\n", dirstream_pos);
+    unsigned long dirstream_pos = do_telldir(ctx.dir); // integral conversion to unsigned
+    fprintf(stdout, "New position: %lu\n", dirstream_pos);
     fprintf(stdout, "\n");
 }
 
 void op_rewind(OpContext &ctx) {
     rewinddir(ctx.dir);
-    auto dirstream_pos = do_telldir(ctx.dir);
-    fprintf(stdout, "New position: %ld\n", dirstream_pos);
+    unsigned long dirstream_pos = do_telldir(ctx.dir); // integral conversion to unsigned
+    fprintf(stdout, "New position: %lu\n", dirstream_pos);
     fprintf(stdout, "\n");
 }
 
 void print_dirent(const dirent *dirent) {
+    using UnsignedOffTRef = const std::make_unsigned_t< decltype(dirent::d_off) >&;
+
     const char *file_type = "unknown";
     switch (dirent->d_type) {
         case DT_BLK: file_type = "block device"; break;
@@ -258,9 +264,9 @@ void print_dirent(const dirent *dirent) {
         case DT_SOCK: file_type = "UNIX domain socket"; break;
         default: ; //DT_UNKNOWN
     }
-    fprintf(stdout, "dirent: inode: %lu, \toff: %ld, \treclen: %d, name: %s, \ttype: %s\n",
+    fprintf(stdout, "dirent: inode: %lu, \toff: %lu, \treclen: %d, name: %s, \ttype: %s\n",
         dirent->d_ino,
-        dirent->d_off,
+        reinterpret_cast<UnsignedOffTRef>(dirent->d_off), // type aliasing, but integral conversion to UnsignedOffT is enough here
         dirent->d_reclen,
         dirent->d_name,
         file_type
